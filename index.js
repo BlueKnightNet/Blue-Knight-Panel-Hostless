@@ -4690,30 +4690,38 @@ function startEngineWatchdog(engine, label, inbounds) {
 
 function startSelfPing(config, getLearnedHost = () => '') {
   if (!bkFlag('SELF_PING', true)) return () => {};
-  let pending = false;
-  const timer = setInterval(async () => {
-    if (pending) return;
+  let pending = false, stopped = false, controller = null;
+  const ping = async () => {
+    if (pending || stopped) return;
     let url;
     try {
       let baseUrl = config.publicBaseUrl;
       if (!baseUrl) {
-        const host = normalizeHost(config.forceHost || config.domain || getLearnedHost());
-        if (!host || isIpLiteral(host) || host === 'localhost') return; // wait for the first public panel request
+        const host = [config.forceHost, getLearnedHost(), config.domain].map(normalizeHost).find(value => value && !isIpLiteral(value) && value !== 'localhost');
+        if (!host) return; // wait for the first public panel request
         const links = new LinkGenerator(config, {}, host);
         baseUrl = `${links.edgeTls ? 'https' : 'http'}://${host}:${links.port}`;
       }
       const base = new URL(baseUrl);
       if (!['http:', 'https:'].includes(base.protocol)) throw new Error('HTTP(S) URL required');
       url = new URL(`/${config.panelPath}/login`, base).href;
-    } catch (_) { return; }
+    } catch (_) { console.warn('[keepalive] Invalid public URL; check PUBLIC_BASE_URL.'); return; }
     pending = true;
-    try { await axios.get(url, { timeout: 10000, maxRedirects: 0 }); }
-    catch (err) { Logger.warn(`Self-ping failed: ${err.message}`); }
-    finally { pending = false; }
-  }, 15 * 60 * 1000);
+    controller = new AbortController();
+    try {
+      const target = new URL(url);
+      target.searchParams.set('_bk_probe', Date.now().toString(36));
+      const response = await axios.get(target.href, { timeout: 20000, maxRedirects: 0, signal: controller.signal, headers: { 'Cache-Control': 'no-cache, no-store' } });
+      if (!stopped) console.log(`[keepalive] ${new Date().toISOString()} panel HTTP check OK (${response.status}).`);
+    } catch (err) {
+      if (!stopped) console.warn(`[keepalive] ${new Date().toISOString()} panel HTTP check failed: ${err.code || err.message}`);
+    } finally { pending = false; controller = null; }
+  };
+  const timer = setInterval(ping, 5 * 60 * 1000);
   timer.unref();
-  Logger.info('Self-ping enabled every 15 minutes (cannot wake a suspended container).');
-  return () => clearInterval(timer);
+  void ping();
+  Logger.info('Self-ping enabled every 5 minutes; external monitoring is needed to wake a suspended app.');
+  return () => { stopped = true; clearInterval(timer); if (controller) controller.abort(); };
 }
 
 async function startGate(userConfig = {}) {

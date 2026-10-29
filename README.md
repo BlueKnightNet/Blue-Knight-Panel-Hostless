@@ -44,11 +44,15 @@ A working web panel does not by itself confirm that the proxy engines are runnin
 
 - Each engine has bounded crash-restart retries with backoff. The retry counter resets after a stable five-minute run.
 - Engine watchdogs check local TCP listeners every minute and request a restart after three consecutive failed checks.
-- A self-ping checks the panel every 15 minutes once its public domain is known.
+- A self-ping checks the panel every five minutes once its public domain is known, with a cache-busting request and visible `[keepalive]` success/failure logs.
 - IPv4-only domain resolution is selected automatically when no public IPv6 interface is detected.
 - Internal engine ports are assigned uniquely to avoid collisions between transports.
 
 **The self-ping cannot wake a suspended container or restart a stopped Node.js process.** Availability still depends on the host's lifecycle and health checks.
+
+If visiting the public panel brings a stopped app back, configure an **external HTTP monitor** to request `https://YOUR-APP.hostless.app/knight/login` every 5–10 minutes. That monitor must run outside this app so it can still send requests when the app is suspended. Use GET requests and expect HTTP 200. A successful page check confirms panel reachability, not an end-to-end proxy connection.
+
+GitHub Actions can run a scheduled check from a separate repository, but schedules can be delayed and public-repository schedules are disabled after 60 days without repository activity. See [GitHub's schedule documentation](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#schedule). A paused app that requires the Hostless Resume control cannot be restarted by an HTTP monitor.
 
 ## Usage tab
 
@@ -80,7 +84,7 @@ Normal deployment on a generated Hostless domain does not require these variable
 | `LINK_PORT=443` | Override the public client port independently of the internal `PORT` |
 | `BK_IPV4_ONLY=true` or `false` | Override IPv4-only domain resolution |
 | `ENGINE_WATCHDOG=false` | Disable the additional listener watchdogs |
-| `SELF_PING=false` | Disable the 15-minute self-ping |
+| `SELF_PING=false` | Disable the five-minute self-ping |
 
 Keep passwords and subscription tokens private. Configure secrets in your hosting dashboard rather than committing them to Git.
 
