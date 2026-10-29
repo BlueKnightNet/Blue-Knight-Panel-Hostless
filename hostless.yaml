@@ -1,0 +1,4 @@
+build:
+  system: auto
+working_directory: /
+start_command: npm start
