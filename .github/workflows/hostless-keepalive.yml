@@ -1,0 +1,59 @@
+name: Hostless availability check
+
+on:
+  schedule:
+    - cron: '3,13,23,33,43,53 * * * *'
+  workflow_dispatch:
+    inputs:
+      panel_url:
+        description: 'Your HTTPS panel URL for this run (optional; schedules use the PANEL_URL repository variable)'
+        required: false
+        type: string
+
+permissions: {}
+
+concurrency:
+  group: hostless-availability
+  cancel-in-progress: false
+
+jobs:
+  check:
+    # No personal domain or shared default: unconfigured repositories skip.
+    if: ${{ vars.PANEL_URL != '' || inputs.panel_url != '' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Prepare this user's panel URL
+        id: target
+        env:
+          PANEL_URL: ${{ inputs.panel_url || vars.PANEL_URL }}
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs');
+          try {
+            const raw = process.env.PANEL_URL.trim();
+            const url = new URL(raw.includes('://') ? raw : 'https://' + raw);
+            if (url.protocol !== 'https:' || url.username || url.password) {
+              throw new Error('Use an HTTPS URL without a username or password.');
+            }
+            if (url.pathname === '/') url.pathname = '/knight/login';
+            url.search = '';
+            url.hash = '';
+            url.searchParams.set('_bk_external', Date.now().toString(36));
+            fs.appendFileSync(process.env.GITHUB_OUTPUT, `url=${url.href}\n`);
+          } catch (error) {
+            console.error('::error::Invalid PANEL_URL: ' + error.message);
+            process.exitCode = 1;
+          }
+          NODE
+      - name: Request the public panel from outside Hostless
+        env:
+          PROBE_URL: ${{ steps.target.outputs.url }}
+        shell: bash
+        run: |
+          status=$(curl --silent --show-error --output /dev/null \
+            --write-out '%{http_code}' --connect-timeout 15 --max-time 60 \
+            --retry 2 --retry-delay 10 --retry-max-time 220 \
+            --header 'Cache-Control: no-cache, no-store' "$PROBE_URL")
+          echo "Public panel HTTP status: $status"
+          test "$status" = 200

@@ -33,6 +33,8 @@ For a generated `*.hostless.app` domain, the panel automatically generates **HTT
 
 Open the panel once after deployment so it can learn and save the public domain. Refresh your client subscription after changing a domain, UUID, or deployment configuration.
 
+Each deployment learns **its own domain** and saves it on its own data volume. The shared repository contains no personal deployment URL. Users can deploy this repository directly without a fork; give each app its own volume. If you previously set `DOMAIN`, `FORCE_HOST`, or `PUBLIC_BASE_URL`, update or remove stale values when changing the app's public address.
+
 - **VLESS, VMess, and Trojan over WebSocket:** served by sing-box.
 - **HTTPUpgrade:** served by sing-box; requires support from your client and the hosting proxy.
 - **VLESS-XHTTP:** served by Xray-core; requires a client with XHTTP support.
@@ -53,6 +55,17 @@ A working web panel does not by itself confirm that the proxy engines are runnin
 If visiting the public panel brings a stopped app back, configure an **external HTTP monitor** to request `https://YOUR-APP.hostless.app/knight/login` every 5–10 minutes. That monitor must run outside this app so it can still send requests when the app is suspended. Use GET requests and expect HTTP 200. A successful page check confirms panel reachability, not an end-to-end proxy connection.
 
 GitHub Actions can run a scheduled check from a separate repository, but schedules can be delayed and public-repository schedules are disabled after 60 days without repository activity. See [GitHub's schedule documentation](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#schedule). A paused app that requires the Hostless Resume control cannot be restarted by an HTTP monitor.
+
+### External monitor for your own app
+
+This repository includes a reusable [availability-check workflow](.github/workflows/hostless-keepalive.yml). It has **no hardcoded app domain** and is skipped until a URL is configured.
+
+1. Fork this repository, **or** copy that workflow into `.github/workflows/` in a separate GitHub repository you own. Your Hostless app can continue deploying directly from this shared repository.
+2. In your monitoring repository, open **Settings → Secrets and variables → Actions → Variables**. Add a **repository variable** named `PANEL_URL` containing your own public HTTPS URL, for example `https://YOUR-APP.hostless.app`. For a custom panel path, supply the complete login URL instead.
+3. Ensure the workflow exists on that repository's **default branch**. In a fork, enable Actions if GitHub asks.
+4. Open **Actions → Hostless availability check → Run workflow** to test it. After setup, it checks your URL every ten minutes.
+
+The optional URL input on **Run workflow** is for that one run only; scheduled runs use the `PANEL_URL` repository variable. No panel password, subscription token, or Hostless API key is required. Each user configures their own monitoring repository; the shared upstream workflow cannot discover every user's independent Hostless deployment automatically.
 
 ## Usage tab
 
