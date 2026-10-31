@@ -420,7 +420,7 @@ function isIpLiteral(h) {
   return /^\d{1,3}(\.\d{1,3}){3}$/.test(h) || h.includes(':') || h.startsWith('[');
 }
 // BK_PROTOCOLS_APPLIED: every path / gRPC service routed on the single public port
-const BK_P = '/@BlueKnight_Net--@BlueKnight_Net--@BlueKnight_Net--@BlueKnight_Net--';
+const BK_P = '/@BlueKnight_Net--';
 const BK_PATHS = {
   vlessWs: BK_P + 'ws',
   vmessWs: BK_P + 'vmess',
@@ -1388,9 +1388,9 @@ class SingBoxEngine {
   buildJsonConfig() {
     const state = this.stateManager.state;
     const enable = this.config.enable;
-    const wsPath = '/@BlueKnight_Net--@BlueKnight_Net--@BlueKnight_Net--@BlueKnight_Net--ws';
-    const vmessPath = '/@BlueKnight_Net--@BlueKnight_Net--@BlueKnight_Net--@BlueKnight_Net--vmess';
-    const huPath = '/@BlueKnight_Net--@BlueKnight_Net--@BlueKnight_Net--@BlueKnight_Net--httpupgrade';
+    const wsPath = BK_PATHS.vlessWs;
+    const vmessPath = BK_PATHS.vmessWs;
+    const huPath = BK_PATHS.vlessHu;
 
     const inbounds = [];
 
